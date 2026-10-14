@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="panel_bg">#121416</color>
+    <color name="icon_bg">#1B1E21</color>
+    <color name="led">#FFB23F</color>
+
+    <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/panel_bg</item>
+        <item name="android:statusBarColor">@color/panel_bg</item>
+        <item name="android:navigationBarColor">@color/panel_bg</item>
+        <item name="android:colorAccent">@color/led</item>
+    </style>
+</resources>

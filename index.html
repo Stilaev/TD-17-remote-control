@@ -1,0 +1,1152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121416">
+<title>TD-17 Пульт</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Пульт в духе аппаратной консоли: графитовая панель, янтарный «светодиодный» индикатор.
+   Сознательно одна тёмная тема — так выглядит сам модуль и так удобнее на сцене. */
+:root {
+  --bg: #121416;
+  --panel: #1b1e21;
+  --panel-2: #23272b;
+  --edge: rgba(255, 255, 255, 0.07);
+  --groove: rgba(255, 255, 255, 0.1);
+  --fg: #ebe8e2;
+  --dim: #8f959b;
+  --led: #ffb23f;
+  --led-soft: rgba(255, 178, 63, 0.16);
+  --good: #4fd27a;
+  --wait: #e3b341;
+  --bad: #ef5a4c;
+  --display: "Barlow Condensed", "Roboto Condensed", "sans-serif-condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Roboto", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "Roboto Mono", ui-monospace, monospace;
+  color-scheme: dark;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 15px/1.45 var(--body);
+  -webkit-tap-highlight-color: transparent;
+}
+[hidden] { display: none !important; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--led); outline-offset: 2px; }
+
+/* ---- Шапка ---- */
+.topbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--edge);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 10px;
+}
+.topbar-in { display: flex; align-items: center; gap: 12px; max-width: 1180px; margin: 0 auto; }
+.brand { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.brand b { font: 700 20px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+#conn-label { font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--bad); }
+.dot.on { background: var(--good); box-shadow: 0 0 8px var(--good); }
+.dot.wait { background: var(--wait); }
+.btn {
+  border: 1px solid var(--edge); background: var(--panel-2); border-radius: 10px;
+  padding: 9px 14px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.18); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn.primary { background: var(--led); color: #1a1407; border-color: transparent; font-weight: 600; }
+.btn.icon { padding: 9px 11px; }
+.progress { height: 3px; background: var(--groove); max-width: 1180px; margin: 8px auto 0; border-radius: 2px; overflow: hidden; }
+.progress > i { display: block; height: 100%; width: 0; background: var(--led); transition: width 0.15s; }
+
+/* ---- Раскладка ---- */
+main {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 32px;
+  display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 900px) {
+  main { grid-template-columns: 320px minmax(0, 340px) minmax(0, 1fr); align-items: start; }
+  .card.mixer, .status, .support { grid-column: 1 / -1; }
+}
+.card {
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 16px;
+  padding: 14px; display: grid; gap: 12px; min-width: 0;
+}
+.card h2 {
+  margin: 0; font: 600 13px/1 var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim);
+}
+.support { background: rgba(239, 90, 76, 0.12); border: 1px solid rgba(239, 90, 76, 0.35); color: var(--fg);
+  border-radius: 12px; padding: 12px 14px; }
+
+/* ---- Кит ---- */
+.kit-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.lcd {
+  background: #0c0d0e; border: 1px solid var(--edge); border-radius: 10px; padding: 10px 12px;
+  text-align: center; min-width: 0;
+}
+#kit-num { font: 600 44px/1 var(--mono); color: var(--led); letter-spacing: 0.04em; text-shadow: 0 0 12px rgba(255, 178, 63, 0.35); }
+#kit-name { font: 700 22px/1.1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; margin-top: 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#kit-sub { font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kit-arrow { width: 44px; height: 64px; font-size: 22px; padding: 0; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
+
+/* ---- Фейдеры ---- */
+.faders { display: flex; gap: 14px; justify-content: space-around; align-items: flex-end; }
+.unit { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.val { font: 500 12px/1 var(--mono); color: var(--led); font-variant-numeric: tabular-nums; min-height: 12px; white-space: nowrap; }
+.unit-label { font: 600 12px/1.1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); white-space: nowrap; }
+.fader { --f: 0; --z: 0; position: relative; width: 44px; height: 200px; touch-action: none; cursor: ns-resize; user-select: none; }
+.fader.big { width: 58px; height: 236px; }
+.fader.disabled { opacity: 0.3; cursor: default; }
+.f-track { position: absolute; inset: 0; }
+.f-track::before { content: ""; position: absolute; left: calc(50% - 3px); width: 6px; top: 13px; bottom: 13px; border-radius: 3px; background: var(--groove); }
+.f-fill { position: absolute; left: calc(50% - 3px); width: 6px; bottom: 13px; height: calc(var(--f) * (100% - 26px)); border-radius: 3px;
+  background: linear-gradient(to top, rgba(255, 178, 63, 0.45), var(--led)); }
+.f-zero { position: absolute; left: 6px; right: 6px; height: 1px; bottom: calc(13px + var(--z) * (100% - 26px)); background: rgba(255, 255, 255, 0.3); }
+.f-knob { position: absolute; left: 3px; right: 3px; height: 26px; bottom: calc(var(--f) * (100% - 26px)); border-radius: 5px;
+  background: linear-gradient(#6a6f75, #3a3e43); border: 1px solid #000; box-shadow: 0 3px 6px rgba(0, 0, 0, 0.55); }
+.f-knob::after { content: ""; position: absolute; left: 5px; right: 5px; top: 11px; height: 2px; background: var(--led); border-radius: 1px; }
+.fader.active .f-knob { background: linear-gradient(#80858b, #4a4e53); }
+
+.pan { --f: 0.5; position: relative; height: 22px; width: 100%; touch-action: none; cursor: ew-resize; user-select: none; }
+.pan.disabled { opacity: 0.3; }
+.p-track { position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px; background: var(--groove); }
+.p-mid { position: absolute; left: calc(50% - 0.5px); top: 5px; width: 1px; height: 12px; background: rgba(255, 255, 255, 0.35); }
+.p-dot { position: absolute; top: 4px; width: 14px; height: 14px; border-radius: 50%; left: calc(var(--f) * (100% - 14px)); background: var(--led); }
+
+/* ---- Микшер ---- */
+.mixer-scroll { overflow-x: auto; margin: 0 -14px; padding: 0 14px 6px; scrollbar-width: thin; }
+.mixer-row { display: flex; gap: 10px; width: max-content; }
+.strip { width: calc(var(--units) * 50px + 16px); background: rgba(0, 0, 0, 0.22); border: 1px solid var(--edge); border-radius: 12px;
+  padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.strip-name { width: 100%; border: 0; border-radius: 8px; padding: 7px 4px; background: var(--panel-2); cursor: pointer;
+  font: 700 14px/1 var(--display); letter-spacing: 0.06em; display: flex; justify-content: center; gap: 6px; }
+.strip-name span { color: var(--led); }
+.strip-name:disabled { opacity: 0.4; cursor: default; }
+.strip-faders { display: flex; gap: 6px; margin-top: 4px; }
+.strip .unit-label { font-size: 11px; }
+.hint { margin: 0; color: var(--dim); font-size: 12px; }
+
+/* ---- Эффекты и строки уровней ---- */
+.fx-row { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--edge); }
+.fx-row:first-child { border-top: 0; padding-top: 0; }
+.fx-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.level { display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 10px; align-items: center; }
+.level:has(.lbl) { grid-template-columns: 104px minmax(0, 1fr) 64px; }
+.level .val { text-align: right; }
+.lbl { color: var(--dim); font-size: 13px; }
+input[type="range"] { width: 100%; accent-color: var(--led); margin: 0; height: 28px; }
+select { background: var(--panel-2); border: 1px solid var(--edge); border-radius: 8px; padding: 7px 8px; max-width: 100%; min-width: 0; }
+select.dim { opacity: 0.5; }
+select:disabled, input:disabled { opacity: 0.4; }
+.sw { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; }
+.sw input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.sw-ui { width: 40px; height: 24px; border-radius: 12px; background: var(--groove); position: relative; transition: background 0.15s; flex: none; }
+.sw-ui::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #c9c6c0; transition: transform 0.15s; }
+.sw input:checked + .sw-ui { background: var(--led); }
+.sw input:checked + .sw-ui::after { transform: translateX(16px); background: #1a1407; }
+.sw input:focus-visible + .sw-ui { outline: 2px solid var(--led); outline-offset: 2px; }
+.sw input:disabled + .sw-ui { opacity: 0.4; }
+.click-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--dim); }
+
+.status { color: var(--dim); font-size: 13px; margin: 0; }
+
+/* ---- Нижние листы ---- */
+.scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 9; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; max-height: 86vh; overflow-y: auto;
+  background: var(--panel); border-top: 1px solid var(--edge); border-radius: 18px 18px 0 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 8px calc(20px + env(safe-area-inset-bottom, 0px));
+  display: grid; gap: 14px; align-content: start;
+}
+@media (min-width: 640px) { .sheet { left: 50%; width: 600px; transform: translateX(-50%); } }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; position: sticky; top: -8px; background: var(--panel); padding-block: 10px 6px; z-index: 1; }
+.sheet-head h2 { margin: 0; font: 700 22px/1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
+.sheet p { margin: 0; }
+.note { color: var(--dim); font-size: 13px; margin: 0; }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--dim); font-size: 14px; }
+.steps b { color: var(--fg); font-weight: 600; }
+.connect-opts { display: grid; gap: 10px; }
+.connect-opts .btn { padding: 14px; text-align: left; display: grid; gap: 2px; }
+.connect-opts .btn small { font-weight: 400; color: inherit; opacity: 0.75; }
+.kit-list { display: grid; gap: 2px; }
+.kit-item { display: flex; gap: 12px; align-items: center; text-align: left; border: 0; background: transparent; padding: 10px 8px; border-radius: 8px; cursor: pointer; }
+.kit-item:hover { background: var(--panel-2); }
+.kit-item.current { background: var(--led-soft); }
+.kit-num { font: 600 15px/1 var(--mono); color: var(--led); width: 36px; }
+.search { width: 100%; background: var(--panel-2); border: 1px solid var(--edge); border-radius: 10px; padding: 10px 12px; }
+.pad-unit { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--edge); }
+.pad-unit:first-child { border-top: 0; padding-top: 0; }
+.pad-unit h3 { margin: 0; font: 700 16px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--led); }
+.eq { display: grid; gap: 8px; }
+.stepper { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.stepper .ctl { display: flex; align-items: center; gap: 10px; }
+.stepper .ctl b { font: 600 18px/1 var(--mono); min-width: 28px; text-align: center; color: var(--led); }
+.log { background: #0c0d0e; border: 1px solid var(--edge); border-radius: 10px; padding: 10px; font: 11px/1.5 var(--mono);
+  color: var(--dim); white-space: pre-wrap; word-break: break-all; max-height: 34vh; overflow-y: auto; margin: 0; }
+body.sheet-open { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <span id="dot" class="dot off" aria-hidden="true"></span>
+    <div class="brand"><b>TD-17 Пульт</b><span id="conn-label">Не подключено</span></div>
+    <button id="btn-refresh" class="btn icon" type="button" aria-label="Обновить" title="Перечитать настройки модуля">⟳</button>
+    <button id="btn-settings" class="btn icon" type="button" aria-label="Настройки" title="Настройки и журнал">⚙</button>
+    <button id="btn-connect" class="btn primary" type="button">Подключить</button>
+  </div>
+  <div id="progress" class="progress" hidden><i></i></div>
+</header>
+
+<main>
+  <p id="support" class="support" hidden></p>
+
+  <section class="card">
+    <h2>Кит</h2>
+    <div class="kit-row">
+      <button id="btn-prev" class="btn kit-arrow needs-kit" type="button" aria-label="Предыдущий кит">‹</button>
+      <div class="lcd"><div id="kit-num">---</div><div id="kit-name">Нет связи с модулем</div><div id="kit-sub">&nbsp;</div></div>
+      <button id="btn-next" class="btn kit-arrow needs-kit" type="button" aria-label="Следующий кит">›</button>
+    </div>
+    <div class="row">
+      <button id="btn-kits" class="btn needs-kit" type="button">Все киты</button>
+      <button id="btn-revert" class="btn" type="button" title="Вернуть кит к состоянию при загрузке">Отменить изменения</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Громкость</h2>
+    <div id="master" class="faders"></div>
+    <div id="click-sound" class="click-row"></div>
+  </section>
+
+  <section class="card">
+    <h2>Эффекты кита</h2>
+    <div id="fx"></div>
+  </section>
+
+  <section class="card mixer">
+    <h2>Микшер пэдов</h2>
+    <div class="mixer-scroll"><div id="mixer" class="mixer-row"></div></div>
+    <p class="hint">Двойной тап по фейдеру — 0 дБ. Кнопка с названием пэда открывает посылы на эффекты и эквалайзер.</p>
+  </section>
+
+  <p id="status" class="status">Модуль не подключён</p>
+</main>
+
+<div id="scrim" class="scrim" hidden></div>
+
+<section id="sheet-connect" class="sheet" hidden aria-label="Подключение">
+  <div class="sheet-head"><h2>Подключение</h2><button class="btn" type="button" data-close>Закрыть</button></div>
+  <ol class="steps">
+    <li>На модуле: <b>SETUP → Bluetooth → ON</b> (кнопка F3).</li>
+    <li>Нажмите «По Bluetooth» и выберите <b>TD-17 MIDI</b>. Если телефон попросит разрешить сопряжение — разрешите.</li>
+    <li>Не подключайте модуль к другим MIDI-приложениям одновременно.</li>
+  </ol>
+  <p id="connect-msg" class="support" role="status" hidden></p>
+  <div class="connect-opts">
+    <button id="c-ble" class="btn primary" type="button">По Bluetooth<small>Беспроводное подключение к TD-17 MIDI</small></button>
+    <button id="c-usb" class="btn" type="button">По USB-кабелю<small>Через OTG-переходник; работает и с TD-17-L</small></button>
+    <button id="c-ble-all" class="btn" type="button">Показать все Bluetooth-устройства<small>Если TD-17 не появляется в обычном списке</small></button>
+  </div>
+</section>
+
+<section id="sheet-kits" class="sheet" hidden aria-label="Киты">
+  <div class="sheet-head"><h2>Киты</h2><button class="btn" type="button" data-close>Готово</button></div>
+  <input id="kit-search" class="search" type="search" placeholder="Название или номер" autocomplete="off">
+  <button id="load-names" class="btn" type="button">Загрузить названия всех китов</button>
+  <p class="note">Около 100 запросов к модулю; по Bluetooth займёт 10–20 секунд. Названия запоминаются на этом телефоне.</p>
+  <div id="kit-list" class="kit-list"></div>
+</section>
+
+<section id="sheet-pad" class="sheet" hidden aria-label="Настройки пэда">
+  <div class="sheet-head"><h2 id="pad-title">Пэд</h2><button class="btn" type="button" data-close>Готово</button></div>
+  <div id="pad-body"></div>
+</section>
+
+<section id="sheet-settings" class="sheet" hidden aria-label="Настройки">
+  <div class="sheet-head"><h2>Настройки</h2><button class="btn" type="button" data-close>Готово</button></div>
+  <div class="stepper"><span>Device ID<br><span class="note">SETUP → MIDI → SYS EX</span></span>
+    <span class="ctl"><button id="dev-minus" class="btn icon" type="button" aria-label="Меньше">−</button><b id="dev-id">17</b><button id="dev-plus" class="btn icon" type="button" aria-label="Больше">+</button></span></div>
+  <div class="stepper"><span>MIDI-канал модуля<br><span class="note">SETUP → MIDI → BASIC</span></span>
+    <span class="ctl"><button id="ch-minus" class="btn icon" type="button" aria-label="Меньше">−</button><b id="midi-ch">10</b><button id="ch-plus" class="btn icon" type="button" aria-label="Больше">+</button></span></div>
+  <p class="note">Ручки VOLUME и PHONES на модуле аппаратные — по MIDI их изменить нельзя. Общую громкость регулирует фейдер «Кит».</p>
+  <div class="fx-head"><label class="sw" for="log-on"><input id="log-on" type="checkbox" checked><span class="sw-ui"></span><span>Журнал MIDI</span></label>
+    <button id="log-clear" class="btn" type="button">Очистить</button></div>
+  <pre id="log" class="log"></pre>
+</section>
+
+<script>
+// ===== TD-17: протокол Roland SysEx и BLE MIDI (без DOM) =====
+// Источник адресов: Roland TD-17 MIDI Implementation v2.00 (2022).
+
+const TD = (() => {
+  const MODEL = [0x00, 0x00, 0x00, 0x4B];
+
+  // Адреса и размеры — четыре 7-битных байта; храним линейно.
+  const A = (b0, b1, b2, b3) => ((b0 * 128 + b1) * 128 + b2) * 128 + b3;
+  const toBytes = (l) => [(l >> 21) & 0x7f, (l >> 14) & 0x7f, (l >> 7) & 0x7f, l & 0x7f];
+  const hex = (arr) => Array.from(arr, (b) => b.toString(16).toUpperCase().padStart(2, "0")).join(" ");
+
+  const checksum = (bytes) => (128 - (bytes.reduce((s, b) => s + b, 0) % 128)) % 128;
+
+  function rq1(dev, addr, size) {
+    const body = [...toBytes(addr), ...toBytes(size)];
+    return [0xf0, 0x41, dev, ...MODEL, 0x11, ...body, checksum(body), 0xf7];
+  }
+
+  function dt1(dev, addr, data) {
+    const body = [...toBytes(addr), ...data.map((b) => b & 0x7f)];
+    return [0xf0, 0x41, dev, ...MODEL, 0x12, ...body, checksum(body), 0xf7];
+  }
+
+  const identityRequest = () => [0xf0, 0x7e, 0x7f, 0x06, 0x01, 0xf7];
+
+  function parse(m) {
+    if (m.length < 6 || m[0] !== 0xf0 || m[m.length - 1] !== 0xf7) return null;
+    if (m[1] === 0x7e && m.length >= 15 && m[3] === 0x06 && m[4] === 0x02) {
+      return { type: "identity", td17: m[5] === 0x41 && m[6] === 0x4b && m[7] === 0x03,
+               rev: (m[10] << 21) | (m[11] << 14) | (m[12] << 7) | m[13] };
+    }
+    if (m.length < 14 || m[1] !== 0x41 || m[3] !== 0 || m[4] !== 0 || m[5] !== 0 || m[6] !== 0x4b || m[7] !== 0x12) return null;
+    const body = m.slice(8, m.length - 2);
+    if (checksum(body) !== m[m.length - 2]) return { type: "bad" };
+    return { type: "data", addr: A(body[0], body[1], body[2], body[3]), data: body.slice(4) };
+  }
+
+  // Кодирование значений: byte — один байт; nib2/nib4 — по 4 бита в байте, знаковые.
+  const ENC = {
+    byte: { n: 1, enc: (v) => [Math.max(0, Math.min(127, v))], dec: (b) => b[0] },
+    nib2: { n: 2, enc: (v) => { const u = v & 0xff; return [(u >> 4) & 15, u & 15]; },
+            dec: (b) => { const u = ((b[0] & 15) << 4) | (b[1] & 15); return u >= 0x80 ? u - 0x100 : u; } },
+    nib4: { n: 4, enc: (v) => { const u = v & 0xffff; return [(u >> 12) & 15, (u >> 8) & 15, (u >> 4) & 15, u & 15]; },
+            dec: (b) => { const u = ((b[0] & 15) << 12) | ((b[1] & 15) << 8) | ((b[2] & 15) << 4) | (b[3] & 15); return u >= 0x8000 ? u - 0x10000 : u; } },
+  };
+
+  // ----- Карта памяти -----
+  const VOL = [-601, 60];
+  const CURRENT = A(0, 0, 0, 0);
+  const SETUP = A(1, 0, 0, 0);
+  const CLICK = SETUP + A(0, 0, 2, 0), CLICK_SIZE = 0x07;
+  const MISC = SETUP + A(0, 0, 3, 0), MISC_SIZE = 0x04;
+  const KITS = 100;
+  const kitBase = (k) => A(3, 0, 0, 0) + k * A(0, 2, 0, 0);
+
+  const BLOCK = {
+    common:   { off: A(0, 0, 0x00, 0), size: 0x2b },
+    ambience: { off: A(0, 0, 0x03, 0), size: 0x0a },
+    reverb:   { off: A(0, 0, 0x04, 0), size: 0x0e },
+    comp:     { off: A(0, 0, 0x05, 0), size: 0x17 },
+    mfx:      { off: A(0, 0, 0x10, 0), size: 1 * 128 + 0x06 },
+  };
+  const unitCommon = (u) => ({ off: A(0, 0, 0x20 + u, 0), size: 0x1c });
+  const unitMain = (u) => ({ off: A(0, 0, 0x40 + u, 0), size: 0x09 });
+  const kitBlocks = () => [BLOCK.common, BLOCK.ambience, BLOCK.reverb, BLOCK.comp, BLOCK.mfx,
+    ...Array.from({ length: 20 }, (_, u) => unitCommon(u)), ...Array.from({ length: 20 }, (_, u) => unitMain(u))];
+
+  const P = (addr, enc, min, max) => ({ addr, enc, min, max });
+  const kp = (k, block, off, enc, [min, max]) => P(kitBase(k) + block.off + off, enc, min, max);
+
+  // Параметры: имя → функция (kit, unit) → ссылка на параметр
+  const PARAMS = {
+    kitVolume: (k) => kp(k, BLOCK.common, 0x1c, "nib4", VOL),
+    pedalHH:   (k) => kp(k, BLOCK.common, 0x20, "nib4", VOL),
+    xstickVol: (k) => kp(k, BLOCK.common, 0x24, "nib4", VOL),
+    xstickSw:  (k) => kp(k, BLOCK.common, 0x28, "byte", [0, 1]),
+    hhBalance: (k) => kp(k, BLOCK.common, 0x29, "nib2", [-5, 5]),
+
+    ambSw:    (k) => kp(k, BLOCK.ambience, 0x00, "byte", [0, 1]),
+    roomType: (k) => kp(k, BLOCK.ambience, 0x01, "byte", [0, 24]),
+    ambLevel: (k) => kp(k, BLOCK.ambience, 0x06, "nib4", VOL),
+    revSw:    (k) => kp(k, BLOCK.reverb, 0x00, "byte", [0, 1]),
+    revType:  (k) => kp(k, BLOCK.reverb, 0x01, "byte", [0, 4]),
+    revLevel: (k) => kp(k, BLOCK.reverb, 0x0a, "nib4", VOL),
+    compSw:   (k) => kp(k, BLOCK.comp, 0x00, "byte", [0, 1]),
+    mfxType:  (k) => kp(k, BLOCK.mfx, 0x00, "byte", [0, 40]),
+    mfxSw:    (k) => kp(k, BLOCK.mfx, 0x01, "byte", [0, 1]),
+    mfxLevel: (k) => kp(k, BLOCK.mfx, 0x02, "nib4", VOL),
+
+    unitInst: (k, u) => kp(k, unitMain(u), 0x00, "nib4", [0, 9999]),
+    unitVol:  (k, u) => kp(k, unitMain(u), 0x04, "nib4", VOL),
+    unitBank: (k, u) => kp(k, unitMain(u), 0x08, "byte", [0, 1]),
+    unitPan:  (k, u) => kp(k, unitCommon(u), 0x00, "nib2", [-30, 30]),
+    unitEqSw: (k, u) => kp(k, unitCommon(u), 0x05, "byte", [0, 1]),
+    unitEqLo: (k, u) => kp(k, unitCommon(u), 0x07, "nib2", [-15, 15]),
+    unitEqMid:(k, u) => kp(k, unitCommon(u), 0x0b, "nib2", [-15, 15]),
+    unitEqHi: (k, u) => kp(k, unitCommon(u), 0x0e, "nib2", [-15, 15]),
+    unitAmb:  (k, u) => kp(k, unitCommon(u), 0x10, "nib4", VOL),
+    unitMfx:  (k, u) => kp(k, unitCommon(u), 0x14, "nib4", VOL),
+    unitRev:  (k, u) => kp(k, unitCommon(u), 0x18, "nib4", VOL),
+
+    clickSound: () => P(CLICK + 0x00, "byte", 0, 14),
+    clickLevel: () => P(CLICK + 0x03, "nib4", ...VOL),
+  };
+  const GLOBAL_PARAMS = new Set(["clickSound", "clickLevel"]);
+
+  const NAMES = {
+    roomType: ["BEACH", "LIVING ROOM", "BATH ROOM", "STUDIO", "GARAGE", "LOCKER ROOM", "THEATER", "CAVE",
+      "GYMNASIUM", "DOME STADIUM", "BOOTH A", "BOOTH B", "STUDIO A", "STUDIO B", "BASEMENT", "JAZZ CLUB",
+      "ROCK CLUB", "BALLROOM", "GATE", "CONCERT HALL", "SPORTS ARENA", "EXPO HALL", "BOTTLE", "CITY", "SPIRAL"],
+    revType: ["ROOM1", "ROOM2", "HALL1", "HALL2", "PLATE"],
+    clickSound: ["METRONOME", "CLICK", "VOICE", "BEEP 1", "BEEP 2", "TEK CLICK", "STICKS", "CLAVES",
+      "WOOD BLOCK", "COWBELL", "AGOGO", "TRIANGLE", "TAMBOURINE", "MARACAS", "CABASA"],
+    mfxType: ["DELAY", "TAPE ECHO", "REVERSE DELAY", "3TAP PAN DELAY", "OD->DELAY", "DS->DELAY", "CHORUS",
+      "SPACE-D", "OD->CHORUS", "DS->CHORUS", "PHASER A", "PHASER B", "STEP PHASER", "FLANGER", "REVERB",
+      "LONG REVERB", "SUPER FILTER", "FILTER+DRIVE", "AUTO WAH", "OD/DS->TWAH", "LOFI COMPRESS", "DISTORTION",
+      "OVERDRIVE", "SATURATOR", "T-SCREAM", "BIT CRUSHER", "ISOLATOR", "RING MODULATOR", "PITCH SHIFTER",
+      "AUTO PAN", "EQUALIZER", "SPECTRUM", "LOW BOOST", "ENHANCER", "HUMANIZER", "SLICER", "STEP FLANGER",
+      "HEXA-CHORUS", "4 TAP PAN DELAY", "EH->FLANGER", "SPEAKER SIM"],
+  };
+
+  const PADS = [
+    { short: "KICK", name: "Бочка", units: [[0, "Пластик"]] },
+    { short: "SNARE", name: "Малый", units: [[1, "Пластик"], [2, "Обод"]] },
+    { short: "TOM1", name: "Том 1", units: [[3, "Пластик"], [4, "Обод"]] },
+    { short: "TOM2", name: "Том 2", units: [[5, "Пластик"], [6, "Обод"]] },
+    { short: "TOM3", name: "Том 3", units: [[7, "Пластик"], [8, "Обод"]] },
+    { short: "HI-HAT", name: "Хай-хэт", units: [[9, "Тарелка"], [10, "Край"]] },
+    { short: "CRASH1", name: "Крэш 1", units: [[11, "Тарелка"], [12, "Край"]] },
+    { short: "CRASH2", name: "Крэш 2", units: [[13, "Тарелка"], [14, "Край"]] },
+    { short: "RIDE", name: "Райд", units: [[15, "Тарелка"], [16, "Край"], [17, "Купол"]] },
+    { short: "AUX", name: "AUX", units: [[18, "Пластик"], [19, "Обод"]] },
+  ];
+
+  const fmt = {
+    db: (v) => (v == null ? "—" : v <= -601 ? "−∞" : (v > 0 ? "+" : "") + (v / 10).toFixed(1)),
+    pan: (v) => (v == null ? "—" : v === 0 ? "C" : v < 0 ? "L" + -v : "R" + v),
+    signed: (v) => (v == null ? "—" : v > 0 ? "+" + v : String(v)),
+    eq: (v) => (v == null ? "—" : (v > 0 ? "+" : "") + v + " dB"),
+  };
+
+  // ----- BLE MIDI (спецификация MMA/Apple) -----
+  const BLE_SERVICE = "03b80e5a-ede8-4b33-a751-6ce34ec4c700";
+  const BLE_CHAR = "7772e5db-3868-4112-a1a9-f2669d106bf3";
+
+  /** Разбивает одно MIDI-сообщение на BLE-пакеты (по умолчанию ≤ 20 байт). */
+  function blePackets(msg, nowMs, maxLen = 20) {
+    const ts = Math.floor(nowMs) & 0x1fff;
+    const hdr = 0x80 | ((ts >> 7) & 0x3f);
+    const tsl = 0x80 | (ts & 0x7f);
+    if (msg[0] !== 0xf0) return [[hdr, tsl, ...msg]];
+
+    const payload = msg.slice(1, msg.length - 1);
+    const packets = [];
+    let cur = [hdr, tsl, 0xf0];
+    for (const b of payload) {
+      if (cur.length >= maxLen) { packets.push(cur); cur = [hdr]; }
+      cur.push(b);
+    }
+    if (cur.length + 2 > maxLen) { packets.push(cur); cur = [hdr]; }
+    cur.push(tsl, 0xf7);
+    packets.push(cur);
+    return packets;
+  }
+
+  /** Состояние разборщика входящих BLE-пакетов. Возвращает массив MIDI-сообщений. */
+  function createBleParser() {
+    let inSysex = false;
+    let sys = [];
+    let running = 0;
+    const dataLen = (s) => {
+      const hi = s & 0xf0;
+      if (hi === 0xc0 || hi === 0xd0) return 1;
+      if (hi >= 0x80 && hi <= 0xe0) return 2;
+      if (s === 0xf1 || s === 0xf3) return 1;
+      if (s === 0xf2) return 2;
+      return 0;
+    };
+
+    return function parsePacket(p) {
+      const out = [];
+      if (!p || p.length < 2 || !(p[0] & 0x80)) return out;
+      let i = 1;
+      const takeSysexData = () => { while (i < p.length && !(p[i] & 0x80)) sys.push(p[i++]); };
+
+      if (inSysex) takeSysexData(); // продолжение SysEx из прошлого пакета
+
+      while (i < p.length) {
+        let b = p[i];
+        if (b & 0x80) {
+          // байт метки времени
+          i++;
+          if (i >= p.length) break;
+          b = p[i];
+          if (b === 0xf7) {
+            if (inSysex) out.push([0xf0, ...sys, 0xf7]);
+            inSysex = false; sys = []; i++;
+            continue;
+          }
+          if (b === 0xf0) {
+            inSysex = true; sys = []; i++;
+            takeSysexData();
+            continue;
+          }
+          if (b >= 0xf8) {           // реальное время (в т.ч. Active Sensing)
+            out.push([b]); i++;
+            if (inSysex) takeSysexData();
+            continue;
+          }
+          if (b & 0x80) { running = b; i++; }
+        }
+        // сообщение с текущим (или бегущим) статусом
+        if (!running) { i++; continue; }
+        const n = dataLen(running);
+        const data = Array.from(p.slice(i, i + n));
+        if (data.length < n) break;
+        out.push([running, ...data]);
+        i += n;
+        if (running >= 0xf0) running = 0;
+      }
+      return out;
+    };
+  }
+
+  return { A, toBytes, hex, checksum, rq1, dt1, identityRequest, parse, ENC, PARAMS, GLOBAL_PARAMS, NAMES, PADS,
+           CURRENT, CLICK, CLICK_SIZE, MISC, MISC_SIZE, KITS, kitBase, BLOCK, kitBlocks, fmt,
+           BLE_SERVICE, BLE_CHAR, blePackets, createBleParser };
+})();
+
+
+
+</script>
+<script>
+// ===== Транспорт, логика и интерфейс =====
+(() => {
+  "use strict";
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("td17." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("td17." + k, JSON.stringify(v)); } catch {} },
+  };
+
+  // ---------- Транспорт: Bluetooth (Web Bluetooth, BLE MIDI) ----------
+  class BleTransport {
+    constructor(onMessage, onClose) {
+      this.onMessage = onMessage; this.onClose = onClose;
+      this.queue = Promise.resolve(); this.inflight = 0; this.parse = TD.createBleParser();
+      this.kind = "Bluetooth";
+    }
+    async connect(showAll) {
+      const opts = showAll
+        ? { acceptAllDevices: true, optionalServices: [TD.BLE_SERVICE] }
+        : { filters: [{ services: [TD.BLE_SERVICE] }, { namePrefix: "TD-17" }], optionalServices: [TD.BLE_SERVICE] };
+      this.device = await navigator.bluetooth.requestDevice(opts);
+      this.name = this.device.name || "TD-17";
+      this.device.addEventListener("gattserverdisconnected", () => this.onClose(this));
+      const server = await this.device.gatt.connect();
+      const svc = await server.getPrimaryService(TD.BLE_SERVICE);
+      this.ch = await svc.getCharacteristic(TD.BLE_CHAR);
+      this.ch.addEventListener("characteristicvaluechanged", (e) => {
+        const v = e.target.value;
+        const bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+        for (const m of this.parse(bytes)) this.onMessage(m);
+      });
+      await this.ch.startNotifications();
+    }
+    send(msg) {
+      for (const p of TD.blePackets(msg, performance.now())) {
+        this.inflight++;
+        const data = new Uint8Array(p);
+        this.queue = this.queue
+          .then(() => (this.ch.writeValueWithoutResponse ? this.ch.writeValueWithoutResponse(data) : this.ch.writeValue(data)))
+          .catch((e) => log("•", "Ошибка отправки: " + e.message))
+          .finally(() => this.inflight--);
+      }
+    }
+    get idle() { return this.inflight < 4; }
+    disconnect() { try { this.device?.gatt?.disconnect(); } catch {} }
+  }
+
+  // ---------- Транспорт: USB-кабель (Web MIDI) ----------
+  class UsbTransport {
+    constructor(onMessage, onClose) { this.onMessage = onMessage; this.onClose = onClose; this.kind = "USB"; }
+    async connect() {
+      this.access = await navigator.requestMIDIAccess({ sysex: true });
+      const pick = (map) => { const all = Array.from(map.values()); return all.find((p) => /TD-17/i.test(p.name)) || all[0]; };
+      this.input = pick(this.access.inputs); this.output = pick(this.access.outputs);
+      if (!this.input || !this.output) throw new Error("MIDI-устройство не найдено. Подключите модуль кабелем USB через OTG-переходник.");
+      this.name = this.output.name;
+      this.input.onmidimessage = (e) => this.onMessage(Array.from(e.data));
+      this.access.onstatechange = (e) => {
+        if (e.port === this.output && e.port.state === "disconnected") this.onClose(this);
+      };
+    }
+    send(msg) { this.output.send(msg); }
+    get idle() { return true; }
+    disconnect() { if (this.input) this.input.onmidimessage = null; }
+  }
+
+  // ---------- Транспорт: Android-приложение (системный MIDI через мост TDNative) ----------
+  const fromHex = (h) => h.trim().split(/\s+/).map((x) => parseInt(x, 16));
+  class NativeTransport {
+    constructor(onMessage, onClose) { this.onMessage = onMessage; this.onClose = onClose; this.kind = ""; this.name = "TD-17"; }
+    connect(showAll, kind) {
+      this.kind = kind === "ble" ? "Bluetooth" : "USB";
+      NativeTransport.current = this;
+      return new Promise((resolve, reject) => {
+        this.pending = { resolve, reject };
+        window.TDNative.connect(kind, !!showAll);
+      });
+    }
+    event(e) {
+      const p = this.pending;
+      switch (e.type) {
+        case "connected":
+          this.name = e.name || "TD-17"; this.kind = e.kind || this.kind;
+          this.pending = null; if (p) p.resolve(); break;
+        case "cancel":
+          this.pending = null;
+          if (p) { const err = new Error("Устройство не выбрано"); err.name = "NotFoundError"; p.reject(err); }
+          break;
+        case "error":
+          if (p) { this.pending = null; p.reject(new Error(e.message)); }
+          else { log("•", e.message); S.status = e.message; scheduleRender(); }
+          break;
+        case "status":
+          S.status = e.message; scheduleRender(); break;
+        case "midi":
+          this.onMessage(fromHex(e.hex)); break;
+        case "closed":
+          this.onClose(this); break;
+      }
+    }
+    send(msg) { window.TDNative.send(TD.hex(msg)); }
+    get idle() { return true; }
+    disconnect() { try { window.TDNative.disconnect(); } catch {} }
+  }
+  window.tdNativeEvent = (e) => { if (NativeTransport.current) NativeTransport.current.event(e); };
+  const IS_APP = !!window.TDNative;
+
+  // ---------- Состояние ----------
+  const S = {
+    mem: new Map(), recv: new Map(), pending: new Map(),
+    snapshot: null, snapKit: null, kit: null, names: {}, sub: "",
+    busy: 0, loading: false, progress: 0,
+    transport: null, alive: false, lastSeen: 0, identity: false,
+    dev: store.get("dev", 0x10), ch: store.get("ch", 10),
+    status: "Модуль не подключён", logOn: true, logLines: [],
+  };
+
+  function log(dir, text) {
+    if (!S.logOn && dir !== "•") return;
+    const t = new Date();
+    const time = t.toTimeString().slice(0, 8) + "." + String(t.getMilliseconds()).padStart(3, "0");
+    S.logLines.push({ time, dir, text });
+    if (S.logLines.length > 300) S.logLines.splice(0, S.logLines.length - 300);
+    if (!$("#sheet-settings").hidden) renderLog();
+  }
+
+  const refFor = (name, unit) => {
+    if (TD.GLOBAL_PARAMS.has(name)) return S.transport ? TD.PARAMS[name]() : null;
+    return S.kit == null ? null : TD.PARAMS[name](S.kit, unit);
+  };
+
+  function getValue(ref) {
+    if (!ref) return null;
+    const e = TD.ENC[ref.enc]; const b = [];
+    for (let i = 0; i < e.n; i++) { const v = S.mem.get(ref.addr + i); if (v == null) return null; b.push(v); }
+    return e.dec(b);
+  }
+
+  function setValue(ref, v) {
+    if (!ref) return;
+    v = Math.max(ref.min, Math.min(ref.max, Math.round(v)));
+    if (getValue(ref) === v) return;
+    const bytes = TD.ENC[ref.enc].enc(v);
+    bytes.forEach((b, i) => S.mem.set(ref.addr + i, b));
+    S.pending.set(ref.addr, bytes);
+    scheduleRender();
+  }
+
+  const isPending = (a) => { for (const [s, d] of S.pending) if (a >= s && a < s + d.length) return true; return false; };
+
+  function send(msg) {
+    if (!S.transport) return;
+    S.transport.send(msg);
+    if (S.logOn) log("→", TD.hex(msg));
+  }
+
+  function onMessage(m) {
+    const st = m[0];
+    if (st === 0xfe) { S.lastSeen = Date.now(); return; }
+    if ((st & 0xf0) === 0xc0) { poll(); return; }
+    if (st !== 0xf0) return;
+    if (S.logOn) log("←", TD.hex(m));
+    const r = TD.parse(m);
+    if (!r) return;
+    if (r.type === "identity") { S.identity = r.td17; log("•", r.td17 ? "Модуль TD-17 опознан" : "Ответило устройство не TD-17"); }
+    else if (r.type === "bad") log("•", "Ошибка контрольной суммы во входящем сообщении");
+    else {
+      const now = performance.now(); S.lastSeen = Date.now();
+      r.data.forEach((b, i) => { const a = r.addr + i; S.recv.set(a, now); if (!isPending(a)) S.mem.set(a, b); });
+    }
+    scheduleRender();
+  }
+
+  async function request(addr, size) {
+    const started = performance.now();
+    const ble = S.transport?.kind === "Bluetooth";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (!S.transport) return false;
+      send(TD.rq1(S.dev, addr, size));
+      const deadline = performance.now() + (attempt === 0 ? (ble ? 1200 : 800) : 2000);
+      while (performance.now() < deadline) {
+        let ok = true;
+        for (let a = addr; a < addr + size; a++) if (!((S.recv.get(a) ?? -1) >= started)) { ok = false; break; }
+        if (ok) return true;
+        await sleep(15);
+      }
+    }
+    log("•", `Нет ответа на запрос ${TD.hex(TD.toBytes(addr))}, размер ${size}`);
+    return false;
+  }
+
+  // ---------- Загрузка ----------
+  async function loadAll() {
+    if (!S.transport) return;
+    S.busy++;
+    try {
+      if (await request(TD.CURRENT, 1)) { S.kit = S.mem.get(TD.CURRENT); }
+      else { S.status = "Модуль не отвечает. Проверьте Device ID в настройках и подключение."; return; }
+      await request(TD.CLICK, TD.CLICK_SIZE);
+      await request(TD.MISC, TD.MISC_SIZE);
+      await loadKit(S.kit);
+    } finally { S.busy--; scheduleRender(); }
+  }
+
+  async function loadKit(k) {
+    S.busy++; S.loading = true; S.progress = 0; scheduleRender();
+    let failed = 0;
+    try {
+      const blocks = TD.kitBlocks();
+      for (let i = 0; i < blocks.length; i++) {
+        if (!(await request(TD.kitBase(k) + blocks[i].off, blocks[i].size))) failed++;
+        S.progress = (i + 1) / blocks.length; scheduleRender();
+        if (!S.transport) return;
+      }
+      updateNames(k); takeSnapshot(k);
+      S.status = failed ? `Кит ${k + 1}: не прочитано блоков — ${failed}. Нажмите «Обновить».` : `Кит ${k + 1} загружен`;
+    } finally { S.busy--; S.loading = false; scheduleRender(); }
+  }
+
+  async function loadAllNames() {
+    if (!S.transport || S.busy) return;
+    S.busy++; S.loading = true; S.progress = 0; scheduleRender();
+    try {
+      for (let k = 0; k < TD.KITS; k++) {
+        if (!S.transport) return;
+        if (await request(TD.kitBase(k), TD.BLOCK.common.size)) updateNames(k);
+        S.progress = (k + 1) / TD.KITS; scheduleRender(); renderKitList();
+      }
+      store.set("names", S.names);
+      S.status = "Список китов загружен";
+    } finally { S.busy--; S.loading = false; scheduleRender(); renderKitList(); }
+  }
+
+  function updateNames(k) {
+    const base = TD.kitBase(k);
+    const text = (from, len) => {
+      let s = "";
+      for (let a = from; a < from + len; a++) { const b = S.mem.get(a); if (b >= 32 && b < 127) s += String.fromCharCode(b); }
+      return s.trim();
+    };
+    const name = text(base, 12);
+    if (name) S.names[k] = name;
+    if (k === S.kit) S.sub = text(base + 12, 16);
+  }
+  const kitName = (k) => S.names[k] || `Kit ${k + 1}`;
+
+  async function selectKit(k) {
+    if (!S.transport || k === S.kit) return;
+    for (let i = 0; i < 200 && S.busy; i++) await sleep(50);   // дождаться текущего обмена
+    if (!S.transport || S.busy) return;
+    const old = S.kit;
+    S.kit = k; S.sub = ""; scheduleRender();
+    send(TD.dt1(S.dev, TD.CURRENT, [k]));
+    S.busy++;
+    try {
+      await sleep(300);
+      if (await request(TD.CURRENT, 1) && S.mem.get(TD.CURRENT) !== k) {
+        log("•", `Запись номера кита не сработала, отправляю Program Change ${k + 1}`);
+        send([0xc0 | ((S.ch - 1) & 15), k & 0x7f]);
+        await sleep(300);
+        await request(TD.CURRENT, 1);
+        S.kit = S.mem.get(TD.CURRENT) ?? old;
+      }
+    } finally { S.busy--; }
+    if (S.kit != null) await loadKit(S.kit);
+  }
+
+  // ---------- Откат ----------
+  function takeSnapshot(k) {
+    const start = TD.kitBase(k), end = TD.kitBase(k + 1);
+    S.snapshot = new Map(); for (const [a, b] of S.mem) if (a >= start && a < end) S.snapshot.set(a, b);
+    S.snapKit = k;
+  }
+
+  function revertKit() {
+    if (S.snapKit == null || S.snapKit !== S.kit) return;
+    let changed = 0;
+    for (const bl of TD.kitBlocks()) {
+      const start = TD.kitBase(S.kit) + bl.off;
+      const orig = [], now = [];
+      let complete = true;
+      for (let a = start; a < start + bl.size; a++) {
+        if (!S.snapshot.has(a)) { complete = false; break; }
+        orig.push(S.snapshot.get(a)); now.push(S.mem.get(a));
+      }
+      if (!complete || orig.every((b, i) => b === now[i])) continue;
+      for (let a = start; a < start + bl.size; a++) { S.mem.set(a, orig[a - start]); S.pending.delete(a); }
+      S.pending.set(start, orig); changed++;
+    }
+    S.status = changed ? "Возвращаю исходные настройки кита…" : "Изменений нет";
+    scheduleRender();
+  }
+
+  // ---------- Таймеры ----------
+  setInterval(() => {
+    if (!S.transport || !S.pending.size || !S.transport.idle) return;
+    const writes = Array.from(S.pending).sort((a, b) => a[0] - b[0]);
+    S.pending.clear();
+    for (const [addr, data] of writes) send(TD.dt1(S.dev, addr, data));
+  }, 50);
+
+  async function poll() {
+    if (!S.transport || S.busy || S.pending.size) return;
+    S.busy++;
+    let changed = null;
+    try {
+      if (await request(TD.CURRENT, 1)) {
+        const k = S.mem.get(TD.CURRENT);
+        if (k !== S.kit) { changed = k; S.kit = k; log("•", `На модуле выбран кит ${k + 1}`); }
+      }
+    } finally { S.busy--; }
+    if (changed != null) await loadKit(changed);
+  }
+  setInterval(() => {
+    const alive = !!S.transport && Date.now() - S.lastSeen < 4000;
+    if (alive !== S.alive) { S.alive = alive; scheduleRender(); }
+    poll();
+  }, 2500);
+
+  // ---------- Подключение ----------
+  async function connect(kind, showAll) {
+    const T = IS_APP ? NativeTransport : kind === "ble" ? BleTransport : UsbTransport;
+    const t = new T(onMessage, (closed) => {
+      if (S.transport !== closed) return;
+      S.transport = null; S.alive = false; S.identity = false;
+      S.status = "Связь с модулем потеряна. Нажмите «Подключить».";
+      log("•", "Отключено");
+      scheduleRender();
+    });
+    if (S.transport) { S.transport.disconnect(); S.transport = null; }
+    S.status = kind === "ble" ? "Выберите TD-17 MIDI в списке устройств…" : "Ищу модуль на USB…";
+    scheduleRender();
+    try {
+      await t.connect(showAll, kind);
+    } catch (e) {
+      if (e && e.name === "NotFoundError") S.status = "Устройство не выбрано.";
+      else S.status = "Не удалось подключиться: " + (e?.message || e);
+      S.connectMsg = S.status;
+      log("•", S.status); scheduleRender();
+      return;
+    }
+    S.transport = t; S.mem.clear(); S.recv.clear(); S.pending.clear(); S.kit = null; S.snapshot = null;
+    S.status = `Подключено: ${t.name} (${t.kind})`;
+    log("•", S.status);
+    closeSheets();
+    scheduleRender();
+    send(TD.identityRequest());
+    loadAll();
+  }
+
+  function disconnect() {
+    const t = S.transport; S.transport = null;
+    t?.disconnect();
+    S.alive = false; S.kit = null; S.status = "Отключено";
+    scheduleRender();
+  }
+
+  // ---------- Интерфейс: элементы управления ----------
+  function bindFader(el, horizontal) {
+    let start = null, startVal = 0, ref = null, lastTap = 0;
+    const size = () => (horizontal ? el.clientWidth : el.clientHeight) - (horizontal ? 14 : 28);
+    el.addEventListener("pointerdown", (e) => {
+      ref = refFor(el.dataset.param, +el.dataset.unit || 0);
+      const v = getValue(ref);
+      if (v == null) return;
+      const now = Date.now();
+      if (now - lastTap < 300) {               // двойной тап — к значению по умолчанию
+        setValue(ref, 0); lastTap = 0; return;
+      }
+      lastTap = now;
+      start = horizontal ? e.clientX : e.clientY; startVal = v;
+      el.setPointerCapture(e.pointerId); el.classList.add("active");
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (start == null || !ref) return;
+      const d = horizontal ? e.clientX - start : start - e.clientY;
+      setValue(ref, startVal + (d / size()) * (ref.max - ref.min));
+    });
+    const end = () => { start = null; el.classList.remove("active"); };
+    el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+    el.addEventListener("keydown", (e) => {
+      const r = refFor(el.dataset.param, +el.dataset.unit || 0); const v = getValue(r);
+      if (v == null) return;
+      const step = Math.max(1, Math.round((r.max - r.min) / 60));
+      const up = horizontal ? ["ArrowRight", "ArrowUp"] : ["ArrowUp", "ArrowRight"];
+      const down = horizontal ? ["ArrowLeft", "ArrowDown"] : ["ArrowDown", "ArrowLeft"];
+      if (up.includes(e.key)) { setValue(r, v + step); e.preventDefault(); }
+      if (down.includes(e.key)) { setValue(r, v - step); e.preventDefault(); }
+    });
+  }
+
+  function fader(param, unit, cls = "") {
+    return `<div class="fader ${cls}" data-param="${param}" data-unit="${unit ?? 0}" tabindex="0" role="slider" aria-label="${param}">
+      <div class="f-track"><div class="f-fill"></div><div class="f-zero"></div><div class="f-knob"></div></div></div>`;
+  }
+  const pan = (param, unit) =>
+    `<div class="pan" data-param="${param}" data-unit="${unit ?? 0}" tabindex="0" role="slider" aria-label="Панорама"><div class="p-track"></div><div class="p-mid"></div><div class="p-dot"></div></div>`;
+  const show = (param, unit, f) => `<span class="val" data-show="${param}" data-unit="${unit ?? 0}" data-fmt="${f}">—</span>`;
+  const range = (param, unit, id) =>
+    `<input type="range" id="${id}" data-param="${param}" data-unit="${unit ?? 0}" min="${refProbe(param).min}" max="${refProbe(param).max}" step="1">`;
+  const toggle = (param, unit, id, label) =>
+    `<label class="sw" for="${id}"><input type="checkbox" id="${id}" data-param="${param}" data-unit="${unit ?? 0}"><span class="sw-ui"></span><span>${label}</span></label>`;
+  const select = (param, id) =>
+    `<select id="${id}" data-param="${param}" data-unit="0">${TD.NAMES[param].map((n, i) => `<option value="${i}">${n}</option>`).join("")}</select>`;
+  function refProbe(param) { return TD.GLOBAL_PARAMS.has(param) ? TD.PARAMS[param]() : TD.PARAMS[param](0, 0); }
+
+  function buildStatic() {
+    // Микшер
+    $("#mixer").innerHTML = TD.PADS.map((p, pi) => `
+      <div class="strip" style="--units:${p.units.length}">
+        <button class="strip-name needs-kit" data-pad="${pi}" type="button">${p.short}<span aria-hidden="true">⋯</span></button>
+        ${pan("unitPan", p.units[0][0])}
+        ${show("unitPan", p.units[0][0], "pan")}
+        <div class="strip-faders">
+          ${p.units.map(([u, label]) => `<div class="unit">${show("unitVol", u, "db")}${fader("unitVol", u)}<span class="unit-label">${label}</span></div>`).join("")}
+        </div>
+      </div>`).join("");
+
+    // Громкость
+    $("#master").innerHTML = [
+      ["kitVolume", "Кит", "big"], ["pedalHH", "Педаль HH"], ["xstickVol", "Кросс-стик"], ["clickLevel", "Метроном"],
+    ].map(([p, label, cls]) => `<div class="unit ${cls || ""}">${show(p, 0, "db")}${fader(p, 0, cls)}<span class="unit-label">${label}</span></div>`).join("");
+    $("#click-sound").innerHTML = `<span>Звук метронома</span>${select("clickSound", "sel-click")}`;
+
+    // Эффекты
+    $("#fx").innerHTML = [
+      ["Ambience", "ambSw", "roomType", "ambLevel"],
+      ["Reverb", "revSw", "revType", "revLevel"],
+      ["Multi FX", "mfxSw", "mfxType", "mfxLevel"],
+    ].map(([title, sw, type, lvl]) => `
+      <div class="fx-row">
+        <div class="fx-head">${toggle(sw, 0, "t-" + sw, title)}${select(type, "s-" + type)}</div>
+        <div class="level">${range(lvl, 0, "r-" + lvl)}${show(lvl, 0, "db")}</div>
+      </div>`).join("") + `<div class="fx-row">${toggle("compSw", 0, "t-comp", "Мастер-компрессор")}</div>`;
+  }
+
+  function padSheet(pi) {
+    const p = TD.PADS[pi];
+    $("#pad-title").textContent = p.name;
+    const rows = p.units.map(([u, label]) => `
+      <section class="pad-unit">
+        <h3>${label}</h3>
+        <div class="level"><span class="lbl">Громкость</span>${range("unitVol", u, "pv" + u)}${show("unitVol", u, "db")}</div>
+        <div class="level"><span class="lbl">Панорама</span>${range("unitPan", u, "pp" + u)}${show("unitPan", u, "pan")}</div>
+        <div class="level"><span class="lbl">→ Ambience</span>${range("unitAmb", u, "pa" + u)}${show("unitAmb", u, "db")}</div>
+        <div class="level"><span class="lbl">→ Multi FX</span>${range("unitMfx", u, "pm" + u)}${show("unitMfx", u, "db")}</div>
+        <div class="level"><span class="lbl">→ Reverb</span>${range("unitRev", u, "pr" + u)}${show("unitRev", u, "db")}</div>
+        ${toggle("unitEqSw", u, "pe" + u, "Эквалайзер")}
+        <div class="eq" data-eq="${u}">
+          <div class="level"><span class="lbl">Низ</span>${range("unitEqLo", u, "pl" + u)}${show("unitEqLo", u, "eq")}</div>
+          <div class="level"><span class="lbl">Середина</span>${range("unitEqMid", u, "pmid" + u)}${show("unitEqMid", u, "eq")}</div>
+          <div class="level"><span class="lbl">Верх</span>${range("unitEqHi", u, "ph" + u)}${show("unitEqHi", u, "eq")}</div>
+        </div>
+        <p class="note" data-inst="${u}"></p>
+      </section>`).join("");
+    let extra = "";
+    if (p.short === "HI-HAT") extra = `<section class="pad-unit"><h3>Хай-хэт</h3><div class="level"><span class="lbl">Баланс откр./закр.</span>${range("hhBalance", 0, "phh")}${show("hhBalance", 0, "signed")}</div></section>`;
+    if (p.short === "SNARE") extra = `<section class="pad-unit"><h3>Малый барабан</h3>${toggle("xstickSw", 0, "pxs", "Кросс-стик")}</section>`;
+    $("#pad-body").innerHTML = rows + extra;
+    openSheet("pad");
+  }
+
+  function renderKitList() {
+    const box = $("#kit-list"); if (!box || $("#sheet-kits").hidden) return;
+    const q = ($("#kit-search").value || "").trim().toLowerCase();
+    const items = [];
+    for (let k = 0; k < TD.KITS; k++) {
+      const n = kitName(k);
+      if (q && !n.toLowerCase().includes(q) && String(k + 1) !== q) continue;
+      items.push(`<button type="button" class="kit-item${k === S.kit ? " current" : ""}" data-kit="${k}"><span class="kit-num">${String(k + 1).padStart(3, "0")}</span><span>${n}</span></button>`);
+    }
+    box.innerHTML = items.join("") || `<p class="note">Ничего не найдено</p>`;
+    $("#load-names").disabled = !S.transport || !!S.busy;
+  }
+
+  function renderLog() {
+    const box = $("#log");
+    box.textContent = S.logLines.map((l) => `${l.time} ${l.dir} ${l.text}`).join("\n");
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // ---------- Отрисовка ----------
+  let raf = 0;
+  function scheduleRender() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
+
+  function render() {
+    const connected = !!S.transport;
+    document.body.classList.toggle("connected", connected);
+    document.body.classList.toggle("ready", connected && S.kit != null);
+    $("#dot").className = "dot " + (connected ? (S.alive ? "on" : "wait") : "off");
+    $("#conn-label").textContent = connected ? `${S.transport.name} · ${S.transport.kind}${S.identity ? " · TD-17" : ""}` : "Не подключено";
+    $("#btn-connect").textContent = connected ? "Отключить" : "Подключить";
+    $("#kit-num").textContent = S.kit == null ? "---" : String(S.kit + 1).padStart(3, "0");
+    $("#kit-name").textContent = S.kit == null ? "Нет связи с модулем" : kitName(S.kit);
+    $("#kit-sub").textContent = S.sub || " ";
+    $("#status").textContent = S.status;
+    $("#connect-msg").textContent = S.connectMsg || "";
+    $("#connect-msg").hidden = !S.connectMsg;
+    $("#progress").hidden = !S.loading;
+    $("#progress > i").style.width = (S.progress * 100).toFixed(1) + "%";
+    $("#btn-revert").disabled = !(S.snapKit != null && S.snapKit === S.kit);
+    $("#btn-refresh").disabled = !connected || !!S.busy;
+    for (const b of $$(".needs-kit")) b.disabled = S.kit == null;
+
+    for (const el of $$("[data-param]")) {
+      const ref = refFor(el.dataset.param, +el.dataset.unit || 0);
+      const v = getValue(ref);
+      const off = v == null;
+      el.classList.toggle("disabled", off);
+      if (el.classList.contains("fader") || el.classList.contains("pan")) {
+        const f = off ? (el.classList.contains("pan") ? 0.5 : 0) : (v - ref.min) / (ref.max - ref.min);
+        el.style.setProperty("--f", f.toFixed(4));
+        if (ref) el.style.setProperty("--z", ((0 - ref.min) / (ref.max - ref.min)).toFixed(4));
+        el.setAttribute("aria-valuenow", off ? "" : v);
+      } else if (el.type === "checkbox") {
+        el.disabled = off; el.checked = v === 1;
+      } else {
+        el.disabled = off;
+        if (!off && String(el.value) !== String(v)) el.value = v;
+      }
+    }
+    for (const el of $$("[data-show]")) {
+      const v = getValue(refFor(el.dataset.show, +el.dataset.unit || 0));
+      el.textContent = TD.fmt[el.dataset.fmt](v);
+    }
+    for (const el of $$("[data-eq]")) el.hidden = getValue(refFor("unitEqSw", +el.dataset.eq)) !== 1;
+    for (const el of $$("[data-inst]")) {
+      const u = +el.dataset.inst;
+      const inst = getValue(refFor("unitInst", u)), bank = getValue(refFor("unitBank", u));
+      el.textContent = inst == null ? "" : `Инструмент № ${inst + 1} · банк ${bank === 1 ? "USER" : "PRESET"}`;
+    }
+    // FX-селекторы неактивны, если эффект выключен
+    for (const [sw, type] of [["ambSw", "roomType"], ["revSw", "revType"], ["mfxSw", "mfxType"]]) {
+      const s = $(`#s-${type}`); if (s) s.classList.toggle("dim", getValue(refFor(sw)) !== 1);
+    }
+    $("#dev-id").textContent = S.dev + 1;
+    $("#midi-ch").textContent = S.ch;
+  }
+
+  // ---------- Листы ----------
+  function openSheet(name) {
+    closeSheets();
+    $("#sheet-" + name).hidden = false; $("#scrim").hidden = false;
+    document.body.classList.add("sheet-open");
+    if (name === "connect") S.connectMsg = "";
+    if (name === "kits") renderKitList();
+    if (name === "settings") renderLog();
+    scheduleRender();
+  }
+  function closeSheets() {
+    for (const s of $$(".sheet")) s.hidden = true;
+    $("#scrim").hidden = true; document.body.classList.remove("sheet-open");
+  }
+
+  // ---------- События ----------
+  function wire() {
+    buildStatic();
+    S.names = store.get("names", {});
+    for (const el of $$(".fader, .pan")) bindFader(el, el.classList.contains("pan"));
+
+    document.addEventListener("input", (e) => {
+      const el = e.target.closest("[data-param]"); if (!el || el.type === "checkbox") return;
+      setValue(refFor(el.dataset.param, +el.dataset.unit || 0), +el.value);
+    });
+    document.addEventListener("change", (e) => {
+      const el = e.target.closest("[data-param]"); if (!el) return;
+      const ref = refFor(el.dataset.param, +el.dataset.unit || 0);
+      setValue(ref, el.type === "checkbox" ? (el.checked ? 1 : 0) : +el.value);
+    });
+    document.addEventListener("click", (e) => {
+      const pad = e.target.closest("[data-pad]"); if (pad) { padSheet(+pad.dataset.pad); return; }
+      const kit = e.target.closest("[data-kit]"); if (kit) { closeSheets(); selectKit(+kit.dataset.kit); return; }
+      if (e.target.closest("[data-close]")) closeSheets();
+    });
+
+    $("#scrim").addEventListener("click", closeSheets);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheets(); });
+    $("#btn-connect").addEventListener("click", () => (S.transport ? disconnect() : openSheet("connect")));
+    $("#btn-settings").addEventListener("click", () => openSheet("settings"));
+    $("#btn-refresh").addEventListener("click", () => { if (!S.busy) loadAll(); });
+    $("#btn-prev").addEventListener("click", () => S.kit != null && selectKit((S.kit + TD.KITS - 1) % TD.KITS));
+    $("#btn-next").addEventListener("click", () => S.kit != null && selectKit((S.kit + 1) % TD.KITS));
+    $("#btn-kits").addEventListener("click", () => openSheet("kits"));
+    $("#btn-revert").addEventListener("click", revertKit);
+    $("#kit-search").addEventListener("input", renderKitList);
+    $("#load-names").addEventListener("click", loadAllNames);
+    $("#c-ble").addEventListener("click", () => connect("ble", false));
+    $("#c-ble-all").addEventListener("click", () => connect("ble", true));
+    $("#c-usb").addEventListener("click", () => connect("usb"));
+    $("#dev-minus").addEventListener("click", () => { S.dev = Math.max(0x10, S.dev - 1); store.set("dev", S.dev); render(); });
+    $("#dev-plus").addEventListener("click", () => { S.dev = Math.min(0x1f, S.dev + 1); store.set("dev", S.dev); render(); });
+    $("#ch-minus").addEventListener("click", () => { S.ch = Math.max(1, S.ch - 1); store.set("ch", S.ch); render(); });
+    $("#ch-plus").addEventListener("click", () => { S.ch = Math.min(16, S.ch + 1); store.set("ch", S.ch); render(); });
+    $("#log-on").addEventListener("change", (e) => { S.logOn = e.target.checked; });
+    $("#log-clear").addEventListener("click", () => { S.logLines = []; renderLog(); });
+
+    window.tdBack = () => {
+      if (document.body.classList.contains("sheet-open")) { closeSheets(); return true; }
+      return false;
+    };
+    if (IS_APP) { document.body.classList.add("app"); render(); return; }
+
+    // Что поддерживает этот браузер
+    const hasBle = !!navigator.bluetooth, hasMidi = !!navigator.requestMIDIAccess;
+    $("#c-ble").disabled = !hasBle; $("#c-ble-all").disabled = !hasBle; $("#c-usb").disabled = !hasMidi;
+    const warn = [];
+    if (!window.isSecureContext) warn.push("Страница открыта не по https — браузер запрещает Bluetooth и MIDI. Откройте её по https-ссылке.");
+    else if (!hasBle && !hasMidi) warn.push("Этот браузер не умеет Bluetooth и MIDI. Откройте страницу в Google Chrome на Android или компьютере.");
+    else if (!hasBle) warn.push("Bluetooth в этом браузере недоступен — работает только подключение кабелем.");
+    $("#support").textContent = warn.join(" ");
+    $("#support").hidden = !warn.length;
+    if (warn.length) S.status = warn[0];
+    render();
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire); else wire();
+})();
+
+</script>
+</body>
+</html>

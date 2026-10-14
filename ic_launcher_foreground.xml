@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Три микшерных фейдера на разной высоте -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- пазы -->
+    <path android:fillColor="#3A3F44" android:pathData="M39,34h4v40h-4z" />
+    <path android:fillColor="#3A3F44" android:pathData="M52,34h4v40h-4z" />
+    <path android:fillColor="#3A3F44" android:pathData="M65,34h4v40h-4z" />
+    <!-- заполнение -->
+    <path android:fillColor="#FFB23F" android:pathData="M39,50h4v24h-4z" />
+    <path android:fillColor="#FFB23F" android:pathData="M52,62h4v12h-4z" />
+    <path android:fillColor="#FFB23F" android:pathData="M65,42h4v32h-4z" />
+    <!-- ручки -->
+    <path android:fillColor="#5B6066" android:pathData="M34,45h14v10h-14z" />
+    <path android:fillColor="#5B6066" android:pathData="M47,57h14v10h-14z" />
+    <path android:fillColor="#5B6066" android:pathData="M60,37h14v10h-14z" />
+    <path android:fillColor="#FFB23F" android:pathData="M36,49h10v2h-10z" />
+    <path android:fillColor="#FFB23F" android:pathData="M49,61h10v2h-10z" />
+    <path android:fillColor="#FFB23F" android:pathData="M62,41h10v2h-10z" />
+</vector>
